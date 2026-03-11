@@ -1,0 +1,124 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Open+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+:root {
+  /* Backgrounds */
+  --color-bg: #F0F3FA;
+  --color-surface: #FFFFFF;
+  --color-surface-hover: #F7F9FD;
+
+  /* Navbar */
+  --color-navbar: #FFFFFF;
+  --color-navbar-border: #E2E8F4;
+
+  /* Brand / accent */
+  --color-accent: #3B5BDB;
+  --color-accent-hover: #2A4BBF;
+  --color-accent-light: #BFCDF0;
+  --color-accent-dim: rgba(59,91,219,0.08);
+
+  /* Text */
+  --color-text-primary: #0F1A2E;
+  --color-text-secondary: #4A5568;
+  --color-text-muted: #8896A8;
+
+  /* Borders */
+  --color-border: #D6DFF0;
+  --color-border-strong: #B8C8E8;
+
+  /* Semantics */
+  --color-danger: #DC2626;
+  --color-warning: #D97706;
+  --color-info: #3B5BDB;
+  --color-success: #1D4E35;
+
+  /* Segmentation badges */
+  --color-seg-a: #1E2A45;
+  --color-seg-b: #3B5BDB;
+  --color-seg-c: #D97706;
+  --color-seg-d: #8896A8;
+  --color-seg-e: #D6DFF0;
+
+  /* Typography */
+  --font-title: 'Playfair Display', Georgia, serif;
+  --font-body: 'Open Sans', system-ui, sans-serif;
+  --font-mono: 'DM Mono', monospace;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  background-color: var(--color-bg);
+  color: var(--color-text-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Skip link — teclado */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 8px;
+  padding: 8px 16px;
+  background: var(--color-accent);
+  color: #fff;
+  font-weight: 600;
+  border-radius: 6px;
+  z-index: 9999;
+  font-family: var(--font-body);
+  font-size: 14px;
+}
+.skip-link:focus { left: 8px; }
+
+/* Focus ring */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Touch — elimina delay de 300ms */
+button, a, input, textarea, select {
+  touch-action: manipulation;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-accent-light); border-radius: 2px; }
+
+/* Prose — chat markdown */
+.prose table { font-size: 13px; }
+.prose td, .prose th { padding: 6px 12px; }
+
+/* Animations */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Respeita preferência de movimento reduzido */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

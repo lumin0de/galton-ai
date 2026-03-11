@@ -1,0 +1,57 @@
+# ── Dependências ──────────────────────────────────────────────────────────────
+node_modules/
+.pnp
+.pnp.js
+
+# ── Variáveis de ambiente (NUNCA versionar) ───────────────────────────────────
+.env
+.env.local
+.env.*.local
+
+# ── Builds ────────────────────────────────────────────────────────────────────
+dist/
+build/
+api/dist/
+web/dist/
+
+# ── Dados sensíveis / bases de clientes ──────────────────────────────────────
+# CSVs contêm dados de médicos, vendas e segmentação — não versionar
+bases/*.csv
+bases/*.xlsx
+bases/name-map.json
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ── TypeScript ────────────────────────────────────────────────────────────────
+*.tsbuildinfo
+
+# ── Cache / temp ──────────────────────────────────────────────────────────────
+.tmp/
+.cache/
+.vite/
+.parcel-cache/
+
+# ── Claude Code (config local da ferramenta de IA) ───────────────────────────
+.claude/
+
+# ── Editores ──────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ── SO ────────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini

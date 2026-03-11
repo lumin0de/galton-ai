@@ -1,0 +1,13 @@
+{
+  "name": "galton-ai",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Galton AI — Agente de inteligência de vendas para representantes farmacêuticos",
+  "scripts": {
+    "dev:api": "cd api && npm run dev",
+    "dev:web": "cd web && npm run dev",
+    "load-bases": "cd api && npm run load-bases",
+    "build:api": "cd api && npm run build",
+    "build:web": "cd web && npm run build"
+  }
+}
