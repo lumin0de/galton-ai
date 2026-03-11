@@ -74,9 +74,10 @@ function MessageBubble({ msg, showCursor }: { msg: Message; showCursor?: boolean
       <div
         aria-live={showCursor ? 'polite' : undefined}
         style={{
-          maxWidth: '78%', padding: '10px 14px',
+          maxWidth: '68%', padding: '11px 16px',
           borderRadius: isUser ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
-          background: isUser ? 'var(--color-accent)' : 'var(--color-bg)',
+          background: isUser ? 'var(--color-accent)' : 'var(--color-surface)',
+          border: isUser ? 'none' : '1px solid var(--color-border)',
           color: isUser ? 'white' : 'var(--color-text-primary)',
           fontSize: 14, fontFamily: 'var(--font-body)', lineHeight: 1.6,
           ...(isUser ? { whiteSpace: 'pre-wrap' as const } : {}),
@@ -628,26 +629,19 @@ export default function ChatPage({ repName }: { repName: string }) {
       </aside>
 
       {/* ── Área de chat ──────────────────────────────────────── */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0, padding: '16px 28px 28px' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', maxWidth: 680, margin: '0 auto', width: '100%', minHeight: 0 }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
 
-          {/* Mensagens */}
-          <div
-            role="log"
-            aria-live="polite"
-            aria-label="Histórico de mensagens"
-            style={{
-              flex: 1, overflow: 'auto', minHeight: 0,
-              background: 'var(--color-surface)',
-              border: '1px solid var(--color-border)',
-              borderRadius: 16,
-              display: 'flex', flexDirection: 'column',
-              marginBottom: 12,
-              boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-            }}
-          >
+        {/* Scroll full-width → scrollbar na borda direita da tela */}
+        <div
+          role="log"
+          aria-live="polite"
+          aria-label="Histórico de mensagens"
+          style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}
+        >
+          {/* Conteúdo centrado */}
+          <div style={{ maxWidth: 760, margin: '0 auto', padding: '20px 24px 8px' }}>
             {msgLoading ? (
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 48 }}>
                 <div role="status" aria-label="Carregando mensagens..." style={{
                   width: 20, height: 20,
                   border: '2px solid var(--color-border)',
@@ -657,54 +651,26 @@ export default function ChatPage({ repName }: { repName: string }) {
               </div>
             ) : isEmpty ? (
               <div style={{
-                flex: 1, display: 'flex', flexDirection: 'column',
+                display: 'flex', flexDirection: 'column',
                 alignItems: 'center', justifyContent: 'center',
-                padding: 32, gap: 20, animation: 'fadeUp 0.35s ease',
+                minHeight: 320, gap: 8, animation: 'fadeUp 0.35s ease',
               }}>
-                <div style={{ textAlign: 'center' }}>
-                  <div aria-hidden="true" style={{
-                    width: 48, height: 48, borderRadius: 12,
-                    background: 'var(--color-accent)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontFamily: 'var(--font-title)', fontWeight: 700, fontSize: 22, color: 'white',
-                    margin: '0 auto 12px',
-                  }}>G</div>
-                  <p style={{ fontFamily: 'var(--font-title)', fontSize: 18, fontWeight: 600, color: 'var(--color-text-primary)', margin: '0 0 4px' }}>
-                    {saudacao()}, {firstName}!
-                  </p>
-                  <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--color-text-secondary)', margin: 0 }}>
-                    Como posso ajudar com sua carteira hoje?
-                  </p>
-                </div>
-                <div role="group" aria-label="Sugestões" style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', maxWidth: 420 }}>
-                  {SUGGESTIONS.map((s, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => sendMessage(s)}
-                      style={{
-                        textAlign: 'left', padding: '10px 16px',
-                        borderRadius: 8, border: '1px solid var(--color-border)',
-                        background: 'white', fontSize: 13, fontFamily: 'var(--font-body)',
-                        color: 'var(--color-text-primary)', cursor: 'pointer',
-                        transition: 'all 150ms ease', outline: 'none',
-                        animation: 'fadeUp 0.35s ease both',
-                        animationDelay: `${i * 60}ms`,
-                      }}
-                      onMouseEnter={e => {
-                        e.currentTarget.style.borderColor = 'var(--color-accent)'
-                        e.currentTarget.style.background = 'var(--color-bg)'
-                      }}
-                      onMouseLeave={e => {
-                        e.currentTarget.style.borderColor = 'var(--color-border)'
-                        e.currentTarget.style.background = 'white'
-                      }}
-                    >{s}</button>
-                  ))}
-                </div>
+                <div aria-hidden="true" style={{
+                  width: 56, height: 56, borderRadius: 14,
+                  background: 'var(--color-accent)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontFamily: 'var(--font-title)', fontWeight: 700, fontSize: 26, color: 'white',
+                  marginBottom: 16,
+                }}>G</div>
+                <p style={{ fontFamily: 'var(--font-title)', fontSize: 22, fontWeight: 600, color: 'var(--color-text-primary)', margin: 0 }}>
+                  {saudacao()}, {firstName}!
+                </p>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'var(--color-text-secondary)', margin: 0 }}>
+                  Como posso ajudar com sua carteira hoje?
+                </p>
               </div>
             ) : (
-              <div style={{ flex: 1, padding: '20px 20px 8px', overflowY: 'auto' }}>
+              <>
                 {messages.map((msg, i) => (
                   <MessageBubble
                     key={i}
@@ -717,7 +683,9 @@ export default function ChatPage({ repName }: { repName: string }) {
                     <AssistantAvatar />
                     <div role="status" aria-label="Processando..." style={{
                       padding: '10px 16px', borderRadius: '12px 12px 12px 2px',
-                      background: 'var(--color-bg)', display: 'flex', alignItems: 'center', gap: 4,
+                      background: 'var(--color-surface)',
+                      border: '1px solid var(--color-border)',
+                      display: 'flex', alignItems: 'center', gap: 4,
                     }}>
                       {[0, 1, 2].map(idx => (
                         <span key={idx} aria-hidden="true" style={{
@@ -730,16 +698,58 @@ export default function ChatPage({ repName }: { repName: string }) {
                   </div>
                 )}
                 <div ref={bottomRef} />
-              </div>
+              </>
             )}
           </div>
+        </div>
+
+        {/* Chips + Input — rodapé centrado, fora do scroll */}
+        <div style={{ maxWidth: 760, margin: '0 auto', width: '100%', padding: '8px 24px 20px' }}>
+
+          {/* Chips de sugestão */}
+          {!loading && (
+            <div
+              role="group"
+              aria-label="Sugestões rápidas"
+              style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}
+            >
+              {SUGGESTIONS.map((s, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => sendMessage(s)}
+                  style={{
+                    padding: '5px 13px',
+                    borderRadius: 20,
+                    border: '1px solid var(--color-border)',
+                    background: 'var(--color-surface)',
+                    fontSize: 12, fontFamily: 'var(--font-body)',
+                    color: 'var(--color-text-secondary)',
+                    cursor: 'pointer', outline: 'none',
+                    transition: 'all 150ms ease',
+                    whiteSpace: 'nowrap',
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.borderColor = 'var(--color-accent)'
+                    e.currentTarget.style.color = 'var(--color-accent)'
+                    e.currentTarget.style.background = 'var(--color-accent-dim)'
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.borderColor = 'var(--color-border)'
+                    e.currentTarget.style.color = 'var(--color-text-secondary)'
+                    e.currentTarget.style.background = 'var(--color-surface)'
+                  }}
+                >{s}</button>
+              ))}
+            </div>
+          )}
 
           {/* Input */}
           <div style={{
             background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-            borderRadius: 12, padding: '12px 14px',
-            display: 'flex', alignItems: 'flex-end', gap: 10,
-            boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+            borderRadius: 12, padding: '10px 14px',
+            display: 'flex', alignItems: 'center', gap: 10,
+            boxShadow: '0 2px 8px rgba(59,91,219,0.06)',
           }}>
             <label htmlFor="chat-input" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0,0,0,0)' }}>
               Mensagem para Galton AI
@@ -757,6 +767,7 @@ export default function ChatPage({ repName }: { repName: string }) {
                 fontSize: 14, fontFamily: 'var(--font-body)',
                 color: 'var(--color-text-primary)', background: 'transparent',
                 lineHeight: 1.5, maxHeight: 120,
+                padding: 0, margin: 0, display: 'block',
               }}
             />
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
@@ -777,9 +788,8 @@ export default function ChatPage({ repName }: { repName: string }) {
                 onMouseLeave={e => { e.currentTarget.style.background = 'var(--color-accent)' }}
               >Enviar</button>
             </div>
-          </div>
-
-        </div>
+          </div>{/* fim input */}
+        </div>{/* fim rodapé centrado */}
       </div>
     </div>
   )

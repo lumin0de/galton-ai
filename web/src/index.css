@@ -92,6 +92,10 @@ button, a, input, textarea, select {
 /* Prose — chat markdown */
 .prose table { font-size: 13px; }
 .prose td, .prose th { padding: 6px 12px; }
+.prose ul { padding-left: 1.2em; margin: 0.5em 0; }
+.prose ul li { margin-bottom: 4px; line-height: 1.6; }
+.prose p { margin-bottom: 0.6em; }
+.prose strong { color: var(--color-text-primary); }
 
 /* Animations */
 @keyframes spin {

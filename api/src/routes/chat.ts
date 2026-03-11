@@ -183,7 +183,7 @@ router.post('/chat', async (req: Request, res: Response) => {
     while (true) {
       const stream = getClient().messages.stream({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 512,
+        max_tokens: 1024,
         system: systemPrompt,
         tools: TOOL_DEFINITIONS,
         messages,
