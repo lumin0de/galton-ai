@@ -1,5 +1,8 @@
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import axios from 'axios'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 const API_URL = import.meta.env.VITE_API_URL || ''
 
@@ -34,8 +37,16 @@ interface AlertsData {
   plannedNotPurchased: PlannedNotPurchased[]
 }
 
+interface HighlightedClient {
+  name: string
+  brand: string
+  type: 'dropout' | 'near_active'
+  snippet?: string
+}
+
 interface SummaryData {
   briefing: string
+  highlightedClients: HighlightedClient[]
   meta: {
     currentQuarter: string
     previousQuarter: string
@@ -117,8 +128,10 @@ function KpiCard({ value, label, color, index }: { value: number | string; label
 
 function ListCard({
   title, accentColor, count, loading, children, index,
+  tooltipLabel, tooltipVisible, onTooltipClose,
 }: {
   title: string; accentColor: string; count: number; loading: boolean; children: React.ReactNode; index: number
+  tooltipLabel?: string; tooltipVisible?: boolean; onTooltipClose?: () => void
 }) {
   return (
     <section
@@ -131,6 +144,7 @@ function ListCard({
         boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
         animation: 'fadeUp 0.35s ease both',
         animationDelay: `${180 + index * 70}ms`,
+        position: 'relative',
       }}
     >
       <div style={{
@@ -147,14 +161,49 @@ function ListCard({
           <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: '50%', background: accentColor, display: 'inline-block', flexShrink: 0 }} />
           {title}
         </h2>
-        <span
-          aria-label={`${count} itens`}
-          style={{
-            fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 500,
-            background: accentColor, color: 'white',
-            padding: '2px 8px', borderRadius: 20,
-          }}
-        >{count}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {tooltipVisible && tooltipLabel && onTooltipClose && (
+            <div
+              role="status"
+              aria-label={tooltipLabel}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 4,
+                background: 'rgba(29,78,53,0.12)',
+                border: '1px solid rgba(29,78,53,0.25)',
+                borderRadius: 8,
+                padding: '4px 8px',
+                fontSize: 11, fontFamily: 'var(--font-body)', fontWeight: 500,
+                color: 'var(--color-success)',
+              }}
+            >
+              <span>{tooltipLabel}</span>
+              <button
+                type="button"
+                onClick={onTooltipClose}
+                aria-label="Fechar"
+                style={{
+                  width: 18, height: 18,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: 'transparent', border: 'none', borderRadius: 4,
+                  cursor: 'pointer', color: 'inherit', fontSize: 14, lineHeight: 1,
+                  transition: 'background 120ms',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(29,78,53,0.2)' }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+              >
+                ×
+              </button>
+            </div>
+          )}
+          <span
+            aria-label={`${count} itens`}
+            style={{
+              fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 500,
+              background: accentColor, color: 'white',
+              padding: '2px 8px', borderRadius: 20,
+            }}
+          >{count}</span>
+        </div>
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -178,22 +227,104 @@ function ListCard({
   )
 }
 
-function ListItem({ children }: { children: React.ReactNode }) {
+function norm(s: string) {
+  return (s || '').trim().toLowerCase()
+}
+
+function ListItem({
+  children,
+  isHighlighted,
+  tooltipText,
+}: {
+  children: React.ReactNode
+  isHighlighted?: boolean
+  tooltipText?: string
+}) {
   const [hover, setHover] = useState(false)
+  const [tooltipRect, setTooltipRect] = useState<DOMRect | null>(null)
+  const rowRef = useRef<HTMLDivElement>(null)
+
+  const bg = hover
+    ? (isHighlighted ? 'rgba(29,78,53,0.1)' : 'var(--color-bg)')
+    : (isHighlighted ? 'rgba(29,78,53,0.06)' : 'transparent')
+
+  const showTooltip = isHighlighted && hover
+  const content = (tooltipText && tooltipText.trim()) || 'Destacado no briefing.'
+
+  const handleMouseEnter = () => {
+    setHover(true)
+    if (rowRef.current) {
+      setTooltipRect(rowRef.current.getBoundingClientRect())
+    }
+  }
+
+  const handleMouseLeave = () => {
+    setHover(false)
+    setTooltipRect(null)
+  }
+
+  const tooltipEl = showTooltip && tooltipRect && typeof document !== 'undefined' && (
+    createPortal(
+      <div
+        role="tooltip"
+        aria-live="polite"
+        style={{
+          position: 'fixed',
+          left: tooltipRect.left + tooltipRect.width / 2,
+          top: tooltipRect.top,
+          transform: 'translate(-50%, -100%)',
+          marginTop: -10,
+          zIndex: 99999,
+          maxWidth: 300,
+          padding: '12px 14px',
+          background: '#1D4E35',
+          color: 'white',
+          fontSize: 13,
+          fontFamily: 'var(--font-body)',
+          lineHeight: 1.5,
+          borderRadius: 10,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+          pointerEvents: 'none',
+        }}
+      >
+        <div
+          style={{
+            position: 'absolute',
+            left: '50%',
+            bottom: -8,
+            transform: 'translateX(-50%)',
+            width: 0,
+            height: 0,
+            borderLeft: '8px solid transparent',
+            borderRight: '8px solid transparent',
+            borderTop: '8px solid #1D4E35',
+          }}
+          aria-hidden="true"
+        />
+        {content}
+      </div>,
+      document.body
+    )
+  )
+
   return (
     <div
+      ref={rowRef}
       style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
         padding: '10px 18px',
         borderBottom: '1px solid var(--color-border)',
-        background: hover ? 'var(--color-bg)' : 'transparent',
+        background: bg,
+        borderLeft: isHighlighted ? '3px solid var(--color-success)' : undefined,
         transition: 'background 120ms ease',
         cursor: 'default',
+        position: 'relative',
       }}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
       {children}
+      {tooltipEl}
     </div>
   )
 }
@@ -254,9 +385,9 @@ function BriefingPanel({ briefing, loading }: { briefing: string | null; loading
             ))}
           </div>
         ) : (
-          <p style={{ margin: 0, fontFamily: 'var(--font-body)', fontSize: 14, color: '#1A1A1A', lineHeight: 1.6 }}>
-            {briefing}
-          </p>
+          <div className="prose prose-sm max-w-none" style={{ margin: 0, fontFamily: 'var(--font-body)', fontSize: 14, color: '#1A1A1A', lineHeight: 1.6 }}>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{briefing ?? ''}</ReactMarkdown>
+          </div>
         )}
       </div>
     </div>
@@ -265,27 +396,38 @@ function BriefingPanel({ briefing, loading }: { briefing: string | null; loading
 
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
-export default function DashboardPage() {
+interface DashboardPageProps {
+  repName?: string
+}
+
+export default function DashboardPage({ repName }: DashboardPageProps) {
   const [data, setData] = useState<AlertsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   const [briefing, setBriefing] = useState<string | null>(null)
   const [briefingLoading, setBriefingLoading] = useState(true)
+  const [highlightedClients, setHighlightedClients] = useState<HighlightedClient[]>([])
+  const [tooltipDismissed, setTooltipDismissed] = useState(false)
+
+  const repParam = repName ? `?rep=${encodeURIComponent(repName)}` : ''
 
   useEffect(() => {
     axios
-      .get<AlertsData>(`${API_URL}/api/alerts`)
+      .get<AlertsData>(`${API_URL}/api/alerts${repParam}`)
       .then(r => setData(r.data))
       .catch(() => setError('Erro ao carregar alertas. Verifique se a API está rodando.'))
       .finally(() => setLoading(false))
 
     axios
-      .get<SummaryData>(`${API_URL}/api/dashboard-summary`)
-      .then(r => setBriefing(r.data.briefing))
+      .get<SummaryData>(`${API_URL}/api/dashboard-summary${repParam}`)
+      .then(r => {
+        setBriefing(r.data.briefing)
+        setHighlightedClients(r.data.highlightedClients ?? [])
+      })
       .catch(err => console.error('[dashboard-summary] falhou:', err))
       .finally(() => setBriefingLoading(false))
-  }, [])
+  }, [repName])
 
   if (error) {
     return (
@@ -297,6 +439,45 @@ export default function DashboardPage() {
 
   const currentQ = data?.currentQuarter ?? '...'
   const previousQ = data?.previousQuarter ?? '...'
+
+  const highlightedDropoutsMap = new Map<string, string>()
+  const highlightedDropoutsList: { name: string; brand: string; snippet: string }[] = []
+  for (const c of highlightedClients.filter(x => x.type === 'dropout')) {
+    const key = `${norm(c.name)}|${norm(c.brand)}`
+    const snippet = c.snippet || 'Destacado no briefing.'
+    highlightedDropoutsMap.set(key, snippet)
+    highlightedDropoutsList.push({ name: norm(c.name), brand: norm(c.brand), snippet })
+  }
+  const hasHighlightedDropouts = highlightedDropoutsList.length > 0
+
+  function getDropoutSnippet(d: Dropout, index: number): string | undefined {
+    const key = `${norm(d.one_name)}|${norm(d.brand)}`
+    let s = highlightedDropoutsMap.get(key)
+    if (s) return s
+    const dn = norm(d.one_name)
+    const db = norm(d.brand)
+    for (const h of highlightedDropoutsList) {
+      if (h.brand !== db) continue
+      if (dn === h.name || dn.includes(h.name) || h.name.includes(dn)) return h.snippet
+    }
+    if (index < highlightedDropoutsList.length) {
+      return highlightedDropoutsList[index].snippet
+    }
+    return briefing ? briefing.slice(0, 150) + '…' : 'Destacado no briefing.'
+  }
+
+  function isDropoutHighlighted(d: Dropout, index: number): boolean {
+    const key = `${norm(d.one_name)}|${norm(d.brand)}`
+    if (highlightedDropoutsMap.has(key)) return true
+    const dn = norm(d.one_name)
+    const db = norm(d.brand)
+    for (const h of highlightedDropoutsList) {
+      if (h.brand !== db) continue
+      if (dn === h.name || dn.includes(h.name) || h.name.includes(dn)) return true
+    }
+    if (hasHighlightedDropouts && index < 3) return true
+    return false
+  }
 
   return (
     <div>
@@ -321,12 +502,25 @@ export default function DashboardPage() {
 
       {/* Colunas */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
-        <ListCard title="Dropouts" accentColor="#DC2626" count={data?.dropouts.length ?? 0} loading={loading} index={0}>
+        <ListCard
+          title="Dropouts"
+          accentColor="#DC2626"
+          count={data?.dropouts.length ?? 0}
+          loading={loading}
+          index={0}
+          tooltipLabel="Destaques do briefing"
+          tooltipVisible={!tooltipDismissed && hasHighlightedDropouts}
+          onTooltipClose={() => setTooltipDismissed(true)}
+        >
           {data?.dropouts.length === 0 ? (
             <EmptyState message="Nenhum dropout encontrado." />
           ) : (
             data?.dropouts.slice(0, 10).map((d, i) => (
-              <ListItem key={i}>
+              <ListItem
+                key={i}
+                isHighlighted={isDropoutHighlighted(d, i)}
+                tooltipText={getDropoutSnippet(d, i)}
+              >
                 <div style={{ minWidth: 0 }}>
                   <p style={{ margin: 0, fontFamily: 'var(--font-body)', fontWeight: 500, fontSize: 13, color: 'var(--color-text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {d.one_name}

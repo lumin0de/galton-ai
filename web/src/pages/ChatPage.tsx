@@ -639,7 +639,7 @@ export default function ChatPage({ repName }: { repName: string }) {
           style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}
         >
           {/* Conteúdo centrado */}
-          <div style={{ maxWidth: 760, margin: '0 auto', padding: '20px 24px 8px' }}>
+          <div style={{ maxWidth: 920, margin: '0 auto', padding: '20px 24px 8px' }}>
             {msgLoading ? (
               <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 48 }}>
                 <div role="status" aria-label="Carregando mensagens..." style={{
@@ -704,7 +704,7 @@ export default function ChatPage({ repName }: { repName: string }) {
         </div>
 
         {/* Chips + Input — rodapé centrado, fora do scroll */}
-        <div style={{ maxWidth: 760, margin: '0 auto', width: '100%', padding: '8px 24px 20px' }}>
+        <div style={{ maxWidth: 920, margin: '0 auto', width: '100%', padding: '8px 24px 20px' }}>
 
           {/* Chips de sugestão */}
           {!loading && (

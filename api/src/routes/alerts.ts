@@ -39,12 +39,10 @@ async function getLatestQuarter(): Promise<string> {
 
 // ─── Dropouts ─────────────────────────────────────────────────────────────────
 
-async function getDropouts(currentQ: string, previousQ: string) {
-  const { data: prevData, error: e1 } = await supabase
-    .from('sales')
-    .select('one_id, one_name, brand, qty_equiv, doctor_id')
-    .eq('quarter', previousQ)
-    .in('brand', ['DYSPORT', 'RESTYLANE', 'SCULPTRA'])
+async function getDropouts(currentQ: string, previousQ: string, territoryCode?: string) {
+  let prevQ = supabase.from('sales').select('one_id, one_name, brand, qty_equiv, doctor_id').eq('quarter', previousQ).in('brand', ['DYSPORT', 'RESTYLANE', 'SCULPTRA'])
+  if (territoryCode) prevQ = prevQ.eq('territory_code', territoryCode)
+  const { data: prevData, error: e1 } = await prevQ
 
   if (e1) throw e1
 
@@ -63,11 +61,9 @@ async function getDropouts(currentQ: string, previousQ: string) {
   )
   if (prevActiveIds.size === 0) return []
 
-  const { data: currData, error: e2 } = await supabase
-    .from('sales')
-    .select('one_id, brand, qty_equiv')
-    .eq('quarter', currentQ)
-    .in('brand', ['DYSPORT', 'RESTYLANE', 'SCULPTRA'])
+  let currQ = supabase.from('sales').select('one_id, brand, qty_equiv').eq('quarter', currentQ).in('brand', ['DYSPORT', 'RESTYLANE', 'SCULPTRA'])
+  if (territoryCode) currQ = currQ.eq('territory_code', territoryCode)
+  const { data: currData, error: e2 } = await currQ
 
   if (e2) throw e2
 
@@ -123,12 +119,10 @@ async function getDropouts(currentQ: string, previousQ: string) {
 
 // ─── Cross-sell ───────────────────────────────────────────────────────────────
 
-async function getCrossSell(currentQ: string) {
-  const { data: currData, error: e1 } = await supabase
-    .from('sales')
-    .select('one_id, one_name, brand')
-    .eq('quarter', currentQ)
-    .in('brand', ['DYSPORT', 'RESTYLANE', 'SCULPTRA'])
+async function getCrossSell(currentQ: string, territoryCode?: string) {
+  let currQ = supabase.from('sales').select('one_id, one_name, brand').eq('quarter', currentQ).in('brand', ['DYSPORT', 'RESTYLANE', 'SCULPTRA'])
+  if (territoryCode) currQ = currQ.eq('territory_code', territoryCode)
+  const { data: currData, error: e1 } = await currQ
 
   if (e1) throw e1
   if (!currData || currData.length === 0) return []
@@ -142,12 +136,9 @@ async function getCrossSell(currentQ: string) {
   const allOneIds = Object.keys(currBrands)
 
   // Use limit(10000) to avoid Supabase's default 1000-row cap on all-time history
-  const { data: allData, error: e2 } = await supabase
-    .from('sales')
-    .select('one_id, brand')
-    .in('one_id', allOneIds)
-    .in('brand', ['DYSPORT', 'RESTYLANE', 'SCULPTRA'])
-    .limit(10000)
+  let allQ = supabase.from('sales').select('one_id, brand').in('one_id', allOneIds).in('brand', ['DYSPORT', 'RESTYLANE', 'SCULPTRA']).limit(10000)
+  if (territoryCode) allQ = allQ.eq('territory_code', territoryCode)
+  const { data: allData, error: e2 } = await allQ
 
   if (e2) throw e2
 
@@ -205,21 +196,19 @@ async function getCrossSell(currentQ: string) {
 
 // ─── Planned not purchased ────────────────────────────────────────────────────
 
-async function getPlannedNotPurchased(currentQ: string, previousQ: string) {
-  const { data: prevData, error: e1 } = await supabase
-    .from('sales')
-    .select('one_id, one_name, brand, billed_at, doctor_id')
-    .eq('quarter', previousQ)
+async function getPlannedNotPurchased(currentQ: string, previousQ: string, territoryCode?: string) {
+  let prevQ = supabase.from('sales').select('one_id, one_name, brand, billed_at, doctor_id').eq('quarter', previousQ)
+  if (territoryCode) prevQ = prevQ.eq('territory_code', territoryCode)
+  const { data: prevData, error: e1 } = await prevQ
 
   if (e1) throw e1
   if (!prevData || prevData.length === 0) return []
 
   const prevOneIds = new Set((prevData as Array<{ one_id: string }>).map(r => r.one_id))
 
-  const { data: currData, error: e2 } = await supabase
-    .from('sales')
-    .select('one_id')
-    .eq('quarter', currentQ)
+  let currQ = supabase.from('sales').select('one_id').eq('quarter', currentQ)
+  if (territoryCode) currQ = currQ.eq('territory_code', territoryCode)
+  const { data: currData, error: e2 } = await currQ
 
   if (e2) throw e2
   const currOneIds = new Set((currData || [] as Array<{ one_id: string }>).map((r: { one_id: string }) => r.one_id))
@@ -267,15 +256,23 @@ async function getPlannedNotPurchased(currentQ: string, previousQ: string) {
 
 // ─── Route ────────────────────────────────────────────────────────────────────
 
-router.get('/alerts', async (_req: Request, res: Response) => {
+async function getRepTerritory(repName: string): Promise<string | null> {
+  const { data } = await supabase.from('representatives').select('territory_code').eq('name', repName).single()
+  return (data as { territory_code: string | null } | null)?.territory_code ?? null
+}
+
+router.get('/alerts', async (req: Request, res: Response) => {
   try {
+    const rep = (req.query.rep as string)?.trim()
+    const territoryCode = rep ? await getRepTerritory(rep) : null
+
     const currentQ = await getLatestQuarter()
     const previousQ = prevQuarter(currentQ)
 
     const [dropouts, crossSell, plannedNotPurchased] = await Promise.all([
-      getDropouts(currentQ, previousQ),
-      getCrossSell(currentQ),
-      getPlannedNotPurchased(currentQ, previousQ),
+      getDropouts(currentQ, previousQ, territoryCode ?? undefined),
+      getCrossSell(currentQ, territoryCode ?? undefined),
+      getPlannedNotPurchased(currentQ, previousQ, territoryCode ?? undefined),
     ])
 
     res.json({ currentQuarter: currentQ, previousQuarter: previousQ, dropouts, crossSell, plannedNotPurchased })

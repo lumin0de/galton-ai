@@ -2,6 +2,9 @@ import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
 import alertsRouter from './routes/alerts'
+import authRouter from './routes/auth'
+import metricsRouter from './routes/metrics'
+import representativesRouter from './routes/representatives'
 import chatRouter from './routes/chat'
 import dashboardSummaryRouter from './routes/dashboard-summary'
 import conversationsRouter from './routes/conversations'
@@ -18,7 +21,10 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', service: 'Galton AI API' })
 })
 
+app.use('/api', authRouter)
 app.use('/api', alertsRouter)
+app.use('/api', metricsRouter)
+app.use('/api', representativesRouter)
 app.use('/api', chatRouter)
 app.use('/api', dashboardSummaryRouter)
 app.use('/api', conversationsRouter)

@@ -1,9 +1,16 @@
-import { useState } from 'react'
-import LoginPage from './pages/LoginPage'
+import { useState, useEffect } from 'react'
+import { Routes, Route } from 'react-router-dom'
+import { Settings } from 'lucide-react'
+import LoginForm, { type UserSession } from './components/ui/login-form'
 import DashboardPage from './pages/DashboardPage'
 import ChatPage from './pages/ChatPage'
+import MetricsPage from './pages/MetricsPage'
+import SettingsPage from './pages/SettingsPage'
+import RepresentativesPage from './pages/RepresentativesPage'
 
-type Page = 'dashboard' | 'chat'
+type Page = 'dashboard' | 'chat' | 'metrics' | 'representatives' | 'settings'
+
+const STORAGE_KEY = 'galton_user'
 
 function IconChart() {
   return (
@@ -29,27 +36,100 @@ function IconLogout() {
   )
 }
 
-export default function App() {
-  const [loggedIn, setLoggedIn] = useState(() => localStorage.getItem('galton_logged_in') === '1')
+function IconMetrics() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <line x1="4" y1="14" x2="4" y2="10"/><line x1="10" y1="14" x2="10" y2="6"/><line x1="16" y1="14" x2="16" y2="2"/><line x1="22" y1="14" x2="22" y2="8"/>
+    </svg>
+  )
+}
 
-  function handleLogin() {
-    localStorage.setItem('galton_logged_in', '1')
-    setLoggedIn(true)
+function IconSettings() {
+  return <Settings size={15} strokeWidth={2} aria-hidden />
+}
+
+function IconReps() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+    </svg>
+  )
+}
+
+function EmbedLayout() {
+  const [user, setUser] = useState<UserSession | null>(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY)
+      return stored ? JSON.parse(stored) : null
+    } catch {
+      return null
+    }
+  })
+  const API_URL = import.meta.env.VITE_API_URL || ''
+  const repName = user?.name ?? 'Usuário'
+
+  if (!user) {
+    return (
+      <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--color-bg)' }}>
+        <LoginForm onLogin={u => { localStorage.setItem(STORAGE_KEY, JSON.stringify(u)); setUser(u) }} apiUrl={API_URL} />
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--color-bg)' }}>
+      <ChatPage repName={repName} />
+    </div>
+  )
+}
+
+function MainApp() {
+  const [user, setUser] = useState<UserSession | null>(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY)
+      return stored ? JSON.parse(stored) : null
+    } catch {
+      return null
+    }
+  })
+
+  function handleLogin(u: UserSession) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(u))
+    setUser(u)
   }
 
   function handleLogout() {
-    localStorage.removeItem('galton_logged_in')
-    setLoggedIn(false)
+    localStorage.removeItem(STORAGE_KEY)
+    setUser(null)
   }
+
   const [page, setPage] = useState<Page>('dashboard')
-  const repName = 'Carlos Junior'
+  const [selectedRep, setSelectedRep] = useState<string | null>(null)
+  const [repsList, setRepsList] = useState<Array<{ id: string; name: string }>>([])
 
-  if (!loggedIn) return <LoginPage onLogin={handleLogin} />
+  const repName = (user?.role === 'admin' && selectedRep) ? selectedRep : (user?.name ?? 'Usuário')
 
-  const navItems: { id: Page; label: string; icon: React.ReactNode }[] = [
+  useEffect(() => {
+    if (user?.role !== 'admin') return
+    const API_URL = import.meta.env.VITE_API_URL || ''
+    fetch(`${API_URL}/api/representatives`)
+      .then(r => r.json())
+      .then((data: Array<{ id: string; name: string }>) => setRepsList(data))
+      .catch(() => setRepsList([]))
+  }, [user?.role])
+
+  const API_URL = import.meta.env.VITE_API_URL || ''
+
+  if (!user) return <LoginForm onLogin={handleLogin} apiUrl={API_URL} />
+
+  const allNavItems: { id: Page; label: string; icon: React.ReactNode; adminOnly?: boolean }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: <IconChart /> },
     { id: 'chat', label: 'Chat IA', icon: <IconChat /> },
+    { id: 'metrics', label: 'Métricas', icon: <IconMetrics />, adminOnly: true },
+    { id: 'representatives', label: 'Representantes', icon: <IconReps />, adminOnly: true },
+    { id: 'settings', label: 'Configurações', icon: <IconSettings />, adminOnly: true },
   ]
+  const navItems = allNavItems.filter(item => !item.adminOnly || user.role === 'admin')
 
   return (
     <>
@@ -72,25 +152,8 @@ export default function App() {
             boxShadow: '0 1px 3px rgba(15,26,46,0.06)',
           }}
         >
-          {/* Coluna esquerda: Galton AI + nav */}
+          {/* Coluna esquerda: nav */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginRight: 28 }}>
-              <div style={{
-                width: 28, height: 28, borderRadius: 7,
-                background: 'var(--color-accent-dim)',
-                border: '1px solid var(--color-accent-light)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                flexShrink: 0,
-              }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="2.5" aria-hidden="true">
-                  <path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/>
-                </svg>
-              </div>
-              <span style={{ fontFamily: 'var(--font-title)', fontWeight: 700, fontSize: 16, color: 'var(--color-text-primary)', letterSpacing: '0.2px', whiteSpace: 'nowrap' }}>
-                Galton AI
-              </span>
-            </div>
-
             <nav role="navigation" aria-label="Navegação principal" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
               {navItems.map(item => {
                 const active = page === item.id
@@ -139,8 +202,38 @@ export default function App() {
             style={{ height: 30, width: 'auto', display: 'block' }}
           />
 
-          {/* Coluna direita: user + logout */}
+          {/* Coluna direita: rep selector (admin) + user + role badge + logout */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'flex-end' }}>
+            {user.role === 'admin' && (
+              <>
+                <select
+                  value={selectedRep ?? ''}
+                  onChange={e => setSelectedRep(e.target.value || null)}
+                  aria-label="Ver como representante"
+                  style={{
+                    fontFamily: 'var(--font-body)', fontSize: 12, padding: '5px 10px',
+                    borderRadius: 6, border: '1px solid var(--color-border)',
+                    background: 'var(--color-surface)', color: 'var(--color-text-primary)',
+                    cursor: 'pointer', minWidth: 140,
+                  }}
+                >
+                  <option value="">Visão geral</option>
+                  {repsList.map(r => (
+                    <option key={r.id} value={r.name}>{r.name}</option>
+                  ))}
+                </select>
+                <span
+                  style={{
+                    fontSize: 10, fontWeight: 600, letterSpacing: '0.05em',
+                    background: 'var(--color-warning)', color: 'white',
+                    padding: '3px 8px', borderRadius: 6,
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  Admin
+                </span>
+              </>
+            )}
             <div
               aria-hidden="true"
               style={{
@@ -202,26 +295,28 @@ export default function App() {
             outline: 'none',
           }}
         >
-          <h1 style={{
-            margin: 0,
-            padding: '20px 28px 0',
-            flexShrink: 0,
-            fontFamily: 'var(--font-title)', fontWeight: 700,
-            fontSize: 22, color: 'var(--color-text-primary)',
-            letterSpacing: '0.1px',
-          }}>
-            {page === 'dashboard' ? 'Dashboard' : 'Chat IA'}
-          </h1>
-
           <div style={{
             flex: 1, minHeight: 0,
-            overflow: page === 'dashboard' ? 'auto' : 'hidden',
-            padding: page === 'dashboard' ? '16px 28px 28px' : '0',
+            overflow: page === 'dashboard' || page === 'metrics' || page === 'representatives' || page === 'settings' ? 'auto' : 'hidden',
+            padding: page === 'dashboard' || page === 'metrics' || page === 'representatives' || page === 'settings' ? '16px 28px 28px' : '0',
           }}>
-            {page === 'dashboard' ? <DashboardPage /> : <ChatPage repName={repName} />}
+            {page === 'dashboard' && <DashboardPage repName={user.role === 'admin' && selectedRep ? selectedRep : undefined} />}
+            {page === 'chat' && <ChatPage repName={repName} />}
+            {page === 'metrics' && <MetricsPage />}
+            {page === 'representatives' && <RepresentativesPage />}
+            {page === 'settings' && <SettingsPage />}
           </div>
         </main>
       </div>
     </>
+  )
+}
+
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/embed" element={<EmbedLayout />} />
+      <Route path="/*" element={<MainApp />} />
+    </Routes>
   )
 }

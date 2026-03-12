@@ -3,6 +3,20 @@
 @plugin "@tailwindcss/typography";
 
 :root {
+  /* shadcn-compatible (for Button, Input) */
+  --background: #FFFFFF;
+  --foreground: #0F1A2E;
+  --muted: #F0F3FA;
+  --muted-foreground: #8896A8;
+  --primary: #3B5BDB;
+  --primary-foreground: #FFFFFF;
+  --input: #D6DFF0;
+  --ring: #3B5BDB;
+  --destructive: #DC2626;
+  --destructive-foreground: #FFFFFF;
+  --accent: #F0F3FA;
+  --accent-foreground: #0F1A2E;
+
   /* Backgrounds */
   --color-bg: #F0F3FA;
   --color-surface: #FFFFFF;

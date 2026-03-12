@@ -6,6 +6,28 @@
 
 CREATE SCHEMA IF NOT EXISTS galton;
 
+-- Métricas do agente (funções que o agente pode usar para extrair dados)
+CREATE TABLE IF NOT EXISTS galton.metrics (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text NOT NULL UNIQUE,                    -- identificador da função (ex: getNearActiveAccounts)
+  display_name text NOT NULL,                   -- nome exibido
+  description text NOT NULL,                    -- descrição para o agente
+  handler_type text NOT NULL CHECK (handler_type IN ('builtin', 'custom_sql')),
+  handler_config jsonb DEFAULT '{}',             -- para custom_sql: { "sql": "SELECT ..." }
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- Usuários do sistema (representante | admin)
+CREATE TABLE IF NOT EXISTS galton.users (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  email text UNIQUE NOT NULL,
+  name text NOT NULL,
+  role text NOT NULL CHECK (role IN ('representative', 'admin')),
+  rep_id uuid REFERENCES galton.representatives(id),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
 -- Representantes
 CREATE TABLE IF NOT EXISTS galton.representatives (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -15,6 +37,27 @@ CREATE TABLE IF NOT EXISTS galton.representatives (
   manager_district text,
   manager_regional text
 );
+
+-- Briefing do dia (cache por rep + data — roda 1x/dia)
+CREATE TABLE IF NOT EXISTS galton.daily_briefings (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  rep_key text NOT NULL,                           -- nome do rep ou '__global__'
+  briefing_date date NOT NULL DEFAULT CURRENT_DATE,
+  briefing text NOT NULL,
+  highlighted_clients jsonb NOT NULL DEFAULT '[]',
+  meta jsonb NOT NULL DEFAULT '{}',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(rep_key, briefing_date)
+);
+CREATE INDEX IF NOT EXISTS idx_daily_briefings_lookup ON galton.daily_briefings(rep_key, briefing_date);
+
+-- Log de logins por representante (para estatísticas)
+CREATE TABLE IF NOT EXISTS galton.rep_login_log (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  rep_name text NOT NULL,
+  logged_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_rep_login_rep ON galton.rep_login_log(rep_name);
 
 -- Médicos / clientes
 CREATE TABLE IF NOT EXISTS galton.doctors (
@@ -138,3 +181,32 @@ CREATE INDEX IF NOT EXISTS idx_sales_billed_at ON galton.sales(billed_at);
 CREATE INDEX IF NOT EXISTS idx_sales_one_id ON galton.sales(one_id);
 CREATE INDEX IF NOT EXISTS idx_active_pos_doctor ON galton.active_positivated(doctor_id);
 CREATE INDEX IF NOT EXISTS idx_active_pos_product ON galton.active_positivated(product_family);
+CREATE INDEX IF NOT EXISTS idx_metrics_name ON galton.metrics(name);
+
+-- Seed métricas built-in
+INSERT INTO galton.metrics (name, display_name, description, handler_type, handler_config, updated_at)
+VALUES
+  ('getNearActiveAccounts', 'Próximos de conta ativa', 'Retorna médicos próximos de virar conta ativa, agrupados por segmentação (A→B→C→D→E→N/D). Cada grupo traz até 5 contas ordenadas por % atingido decrescente.', 'builtin', '{}', now()),
+  ('getPlannedNotPurchased', 'Planejados sem compra', 'Retorna médicos da carteira que compraram no trimestre anterior mas não realizaram nenhuma compra no trimestre atual. Ordenados por segmentação A→E.', 'builtin', '{}', now()),
+  ('getDropouts', 'Dropouts', 'Retorna contas que eram ativas no trimestre anterior mas não atingiram a meta no trimestre atual (dropouts do trimestre). Ordenados por segmentação.', 'builtin', '{}', now())
+ON CONFLICT (name) DO NOTHING;
+
+-- Função para executar SQL read-only (métricas custom)
+CREATE OR REPLACE FUNCTION galton.exec_select_sql(query_text text)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  result jsonb;
+BEGIN
+  IF query_text !~* '^\s*SELECT\s+' OR query_text ~* '\y(DROP|DELETE|UPDATE|INSERT|TRUNCATE|ALTER|CREATE|EXECUTE)\y' THEN
+    RAISE EXCEPTION 'Invalid query: only SELECT allowed';
+  END IF;
+  IF query_text !~* '\mFROM\s+galton\.' THEN
+    RAISE EXCEPTION 'Invalid query: must reference galton schema (e.g. FROM galton.sales)';
+  END IF;
+  EXECUTE format('SELECT COALESCE(jsonb_agg(t), ''[]''::jsonb) FROM (%s) t', query_text) INTO result;
+  RETURN result;
+END;
+$$;

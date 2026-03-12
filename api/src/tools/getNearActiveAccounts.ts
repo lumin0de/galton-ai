@@ -41,14 +41,16 @@ async function getLatestQuarter(): Promise<string> {
   return `Q${Math.ceil(row.month_ref / 3)}_${row.year_ref}`
 }
 
-export async function getNearActiveAccounts(): Promise<NearActiveBySegGroup[]> {
+export async function getNearActiveAccounts(territoryCode?: string): Promise<NearActiveBySegGroup[]> {
   const currentQ = await getLatestQuarter()
 
-  const { data: salesData, error } = await supabase
+  let query = supabase
     .from('sales')
     .select('one_id, one_name, brand, qty_equiv')
     .eq('quarter', currentQ)
     .in('brand', ['DYSPORT', 'RESTYLANE', 'SCULPTRA'])
+  if (territoryCode) query = query.eq('territory_code', territoryCode)
+  const { data: salesData, error } = await query
 
   if (error) throw new Error(`getNearActiveAccounts query error: ${error.message}`)
   if (!salesData || salesData.length === 0) return []

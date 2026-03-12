@@ -35,26 +35,60 @@ function prevQuarter(q: string): string {
   return qn === 1 ? `Q4_${yr - 1}` : `Q${qn - 1}_${yr}`
 }
 
+async function getRepTerritory(repName: string): Promise<string | null> {
+  const { data } = await supabase.from('representatives').select('territory_code').eq('name', repName).single()
+  return (data as { territory_code: string | null } | null)?.territory_code ?? null
+}
+
+function todayDate(): string {
+  const d = new Date()
+  return d.toISOString().slice(0, 10)
+}
+
 // ─── GET /api/dashboard-summary ───────────────────────────────────────────────
 
-router.get('/dashboard-summary', async (_req: Request, res: Response) => {
+router.get('/dashboard-summary', async (req: Request, res: Response) => {
   try {
+    const rep = (req.query.rep as string)?.trim()
+    const repKey = rep || '__global__'
+    const today = todayDate()
+
+    // ── 1. Verificar cache do briefing do dia ─────────────────────────────────
+    try {
+      const { data: cached } = await supabase
+        .from('daily_briefings')
+        .select('briefing, highlighted_clients, meta')
+        .eq('rep_key', repKey)
+        .eq('briefing_date', today)
+        .maybeSingle()
+
+      if (cached) {
+        return res.json({
+          briefing: cached.briefing,
+          highlightedClients: cached.highlighted_clients ?? [],
+          meta: cached.meta ?? {},
+        })
+      }
+    } catch {
+      // Tabela pode não existir ainda
+    }
+
+    const territoryCode = rep ? await getRepTerritory(rep) : null
+
     const currentQ = await getLatestQuarter()
     const previousQ = prevQuarter(currentQ)
 
-    // ── 1. Fetch raw sales data for both quarters ─────────────────────────────
+    let prevQ = supabase.from('sales').select('one_id, one_name, brand, qty_equiv, seg_dysport:doctors(seg_dysport), seg_restylane:doctors(seg_restylane)').eq('quarter', previousQ).in('brand', ['DYSPORT', 'RESTYLANE', 'SCULPTRA'])
+    let currQ = supabase.from('sales').select('one_id, brand, qty_equiv').eq('quarter', currentQ).in('brand', ['DYSPORT', 'RESTYLANE', 'SCULPTRA'])
+    if (territoryCode) {
+      prevQ = prevQ.eq('territory_code', territoryCode)
+      currQ = currQ.eq('territory_code', territoryCode)
+    }
+
     const [{ data: prevSales }, { data: currSales }, nearActiveGroups] = await Promise.all([
-      supabase
-        .from('sales')
-        .select('one_id, one_name, brand, qty_equiv, seg_dysport:doctors(seg_dysport), seg_restylane:doctors(seg_restylane)')
-        .eq('quarter', previousQ)
-        .in('brand', ['DYSPORT', 'RESTYLANE', 'SCULPTRA']),
-      supabase
-        .from('sales')
-        .select('one_id, brand, qty_equiv')
-        .eq('quarter', currentQ)
-        .in('brand', ['DYSPORT', 'RESTYLANE', 'SCULPTRA']),
-      getNearActiveAccounts(),
+      prevQ,
+      currQ,
+      getNearActiveAccounts(territoryCode ?? undefined),
     ])
 
     // ── 2. Aggregate prev quarter by one_id+brand ─────────────────────────────
@@ -122,11 +156,13 @@ router.get('/dashboard-summary', async (_req: Request, res: Response) => {
       nearActiveLines,
     ].join('\n')
 
+    const repLabel = rep || 'Carlos Junior'
     const prompt = `Você é Galton AI, assistente de inteligência de vendas da Galderma.
-Com base nos dados reais abaixo da carteira do representante Carlos Junior,
-escreva um briefing executivo em exatamente 2-3 frases curtas e diretas em português.
+Com base nos dados reais abaixo da carteira do representante ${repLabel},
+escreva um briefing em exatamente 2-3 frases curtas e diretas em português.
 Destaque as oportunidades mais urgentes. Seja específico com nomes e números.
 NÃO use bullet points nem listas. Escreva como um parágrafo corrido.
+NÃO inclua título, cabeçalho ou rótulo (ex: "Briefing executivo", nome do representante). Apenas o texto do briefing.
 Tom: analista de vendas experiente falando diretamente com o representante.
 Use linguagem humana e ativa, não robótica.
 
@@ -142,21 +178,78 @@ Gere o briefing agora:`
       messages: [{ role: 'user', content: prompt }],
     })
 
-    const text = response.content
+    let text = response.content
       .filter((b): b is Anthropic.TextBlock => b.type === 'text')
       .map(b => b.text)
       .join('')
       .trim()
 
+    // Remove título/cabeçalho que o modelo às vezes adiciona (ex: "BRIEFING EXECUTIVO - Carlos Junior")
+    text = text.replace(/^briefing\s+executivo\s*[-–—:\s].*\n?/im, '').trim()
+
+    function extractSnippet(briefingText: string, clientName: string): string {
+      if (!briefingText || !clientName) return ''
+      const name = clientName.trim()
+      if (name.length < 3) return ''
+      const idx = briefingText.toLowerCase().indexOf(name.toLowerCase())
+      if (idx < 0) return ''
+      const before = briefingText.slice(0, idx)
+      const after = briefingText.slice(idx)
+      const start = Math.max(0, (Math.max(before.lastIndexOf('.'), before.lastIndexOf(',')) + 1) || 0)
+      let end = idx + after.length
+      for (const sep of ['.', ',', '\n']) {
+        const pos = after.indexOf(sep)
+        if (pos >= 0) end = Math.min(end, idx + pos + 1)
+      }
+      end = Math.min(end, idx + 150)
+      let snippet = briefingText.slice(start, end).trim()
+      if (snippet.length > 120) snippet = snippet.slice(0, 117) + '…'
+      return snippet
+    }
+
+    const highlightedClients = [
+      ...topDropouts.map(d => ({
+        name: d.name,
+        brand: d.brand,
+        type: 'dropout' as const,
+        snippet: extractSnippet(text, d.name),
+      })),
+      ...topNearActive.map(a => ({
+        name: a.one_name,
+        brand: a.brand,
+        type: 'near_active' as const,
+        snippet: extractSnippet(text, a.one_name),
+      })),
+    ]
+
+    const meta = {
+      currentQuarter: currentQ,
+      previousQuarter: previousQ,
+      dropoutsTotal: dropouts.length,
+      plannedNotPurchasedTotal: plannedNotPurchasedCount,
+      nearActiveTotal: allNearActive.length,
+    }
+
+    // Salvar no cache para o dia
+    try {
+      await supabase.from('daily_briefings').upsert(
+        {
+          rep_key: repKey,
+          briefing_date: today,
+          briefing: text,
+          highlighted_clients: highlightedClients,
+          meta,
+        },
+        { onConflict: 'rep_key,briefing_date' }
+      )
+    } catch (e) {
+      console.warn('[dashboard-summary] cache save failed:', e)
+    }
+
     res.json({
       briefing: text,
-      meta: {
-        currentQuarter: currentQ,
-        previousQuarter: previousQ,
-        dropoutsTotal: dropouts.length,
-        plannedNotPurchasedTotal: plannedNotPurchasedCount,
-        nearActiveTotal: allNearActive.length,
-      },
+      highlightedClients,
+      meta,
     })
   } catch (err) {
     console.error('Dashboard summary error:', err)

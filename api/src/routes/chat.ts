@@ -24,40 +24,41 @@ function loadSkill(filename: string): string {
   }
 }
 
-// ─── Tool definitions for Claude ─────────────────────────────────────────────
+// ─── Tool definitions from metrics table ─────────────────────────────────────
 
-const TOOL_DEFINITIONS: Anthropic.Tool[] = [
-  {
-    name: 'getNearActiveAccounts',
-    description:
-      'Retorna médicos próximos de virar conta ativa, agrupados por segmentação (A→B→C→D→E→N/D). Cada grupo traz até 5 contas ordenadas por % atingido decrescente. Apresente os resultados exatamente nessa estrutura: um bloco por segmentação.',
-    input_schema: {
-      type: 'object' as const,
-      properties: {},
-      required: [],
-    },
-  },
-  {
-    name: 'getPlannedNotPurchased',
-    description:
-      'Retorna médicos da carteira que compraram no trimestre anterior mas não realizaram nenhuma compra no trimestre atual. Ordenados por segmentação A→E.',
-    input_schema: {
-      type: 'object' as const,
-      properties: {},
-      required: [],
-    },
-  },
-  {
-    name: 'getDropouts',
-    description:
-      'Retorna contas que eram ativas no trimestre anterior mas não atingiram a meta no trimestre atual (dropouts do trimestre). Ordenados por segmentação.',
-    input_schema: {
-      type: 'object' as const,
-      properties: {},
-      required: [],
-    },
-  },
-]
+async function loadToolDefinitions(): Promise<Anthropic.Tool[]> {
+  const { data: metrics, error } = await supabase
+    .from('metrics')
+    .select('name, display_name, description')
+    .order('created_at', { ascending: true })
+
+  if (error) {
+    console.warn('[chat] loadToolDefinitions error:', error)
+    return getDefaultToolDefinitions()
+  }
+  if (!metrics?.length) {
+    return getDefaultToolDefinitions()
+  }
+
+  return metrics.map(m => {
+    const desc = (m as { display_name?: string }).display_name
+      ? `[${(m as { display_name: string }).display_name}] ${m.description}`
+      : m.description
+    return {
+      name: m.name,
+      description: desc,
+      input_schema: { type: 'object' as const, properties: {} as Record<string, never>, required: [] as string[] },
+    }
+  })
+}
+
+function getDefaultToolDefinitions(): Anthropic.Tool[] {
+  return [
+    { name: 'getNearActiveAccounts', description: 'Retorna médicos próximos de virar conta ativa, agrupados por segmentação (A→B→C→D→E→N/D). Cada grupo traz até 5 contas ordenadas por % atingido decrescente. Apresente os resultados exatamente nessa estrutura: um bloco por segmentação.', input_schema: { type: 'object' as const, properties: {}, required: [] } },
+    { name: 'getPlannedNotPurchased', description: 'Retorna médicos da carteira que compraram no trimestre anterior mas não realizaram nenhuma compra no trimestre atual. Ordenados por segmentação A→E.', input_schema: { type: 'object' as const, properties: {}, required: [] } },
+    { name: 'getDropouts', description: 'Retorna contas que eram ativas no trimestre anterior mas não atingiram a meta no trimestre atual (dropouts do trimestre). Ordenados por segmentação.', input_schema: { type: 'object' as const, properties: {}, required: [] } },
+  ]
+}
 
 // ─── Tool executor ────────────────────────────────────────────────────────────
 
@@ -135,6 +136,14 @@ async function executeTool(name: string): Promise<string> {
       return JSON.stringify(dropouts)
     }
 
+    // Custom SQL metrics
+    const { data: metric } = await supabase.from('metrics').select('handler_type, handler_config').eq('name', name).single()
+    if (metric?.handler_type === 'custom_sql' && metric?.handler_config?.sql) {
+      const { data: rows, error: sqlErr } = await supabase.rpc('exec_select_sql', { query_text: metric.handler_config.sql })
+      if (sqlErr) return JSON.stringify({ error: `Erro ao executar métrica: ${sqlErr.message}` })
+      return JSON.stringify(rows ?? [])
+    }
+
     return JSON.stringify({ error: `Ferramenta desconhecida: ${name}` })
   } catch (err) {
     return JSON.stringify({ error: String(err) })
@@ -156,6 +165,7 @@ router.post('/chat', async (req: Request, res: Response) => {
 
   const persona = loadSkill('agent-persona.md')
   const rules = loadSkill('business-rules.md')
+  const toolsHint = `Você tem acesso a ferramentas de dados. Algumas são métricas customizadas. Use a descrição de cada ferramenta para decidir quando chamá-la — considere todas as ferramentas disponíveis antes de responder.`
 
   const now = new Date()
   const dateStr = now.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })
@@ -163,7 +173,7 @@ router.post('/chat', async (req: Request, res: Response) => {
   const quarter = `Q${Math.ceil((now.getMonth() + 1) / 3)}_${now.getFullYear()}`
   const context = `## Contexto temporal\nHoje é ${dateStr}, ${timeStr}. Trimestre atual: ${quarter}.`
 
-  const systemPrompt = `${persona}\n\n---\n\n${rules}\n\n---\n\n${context}`
+  const systemPrompt = `${persona}\n\n---\n\n${rules}\n\n---\n\n${toolsHint}\n\n---\n\n${context}`
 
   const messages: Anthropic.MessageParam[] = [
     ...history.map(h => ({ role: h.role, content: h.content })),
@@ -179,13 +189,15 @@ router.post('/chat', async (req: Request, res: Response) => {
   let nearActiveData: NearActiveBySegGroup[] | null = null
 
   try {
+    const toolDefinitions = await loadToolDefinitions()
+
     // Agentic loop: stream each call, execute tools if needed, stream final response
     while (true) {
       const stream = getClient().messages.stream({
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 1024,
         system: systemPrompt,
-        tools: TOOL_DEFINITIONS,
+        tools: toolDefinitions,
         messages,
       })
 

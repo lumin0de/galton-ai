@@ -1,7 +1,15 @@
 import { useState, useRef } from 'react'
 import type { FormEvent } from 'react'
 
-export default function LoginPage({ onLogin }: { onLogin: () => void }) {
+const API_URL = import.meta.env.VITE_API_URL || ''
+
+export interface UserSession {
+  name: string
+  email: string
+  role: 'representative' | 'admin'
+}
+
+export default function LoginPage({ onLogin }: { onLogin: (user: UserSession) => void }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -13,11 +21,21 @@ export default function LoginPage({ onLogin }: { onLogin: () => void }) {
     if (!email || !password) return
     setLoading(true)
     setError('')
-    await new Promise(r => setTimeout(r, 350))
-    if (email === 'carlos@galton.ai' && password === 'demo123') {
-      onLogin()
-    } else {
-      setError('Credenciais inválidas. Verifique e-mail e senha.')
+    try {
+      const res = await fetch(`${API_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), password }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || 'Credenciais inválidas. Verifique e-mail e senha.')
+        return
+      }
+      onLogin({ name: data.name, email: data.email, role: data.role })
+    } catch {
+      setError('Erro ao conectar. Verifique se a API está rodando.')
+    } finally {
       setLoading(false)
       setTimeout(() => emailRef.current?.focus(), 50)
     }

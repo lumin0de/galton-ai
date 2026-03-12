@@ -29,6 +29,7 @@ galton-ai/
 │   │   │   ├── alerts.ts         # GET /api/alerts (dropouts, cross-sell, planned not purchased)
 │   │   │   ├── chat.ts           # POST /api/chat (streaming SSE com Claude)
 │   │   │   ├── conversations.ts # CRUD conversas e mensagens
+│   │   │   ├── auth.ts               # POST /api/auth/login (representante | admin)
 │   │   │   └── dashboard-summary.ts  # GET /api/dashboard-summary (briefing IA)
 │   │   ├── skills/               # Persona e regras do agente
 │   │   │   ├── agent-persona.md
@@ -112,7 +113,23 @@ cp .env.example .env
 2. Em **Settings → API → Extra schemas**, inclua `galton`
 3. No **SQL Editor**, execute o conteúdo de `supabase/schema.sql`
 
-### 3. Arquivos de Dados (bases/)
+### 3. Perfis de Acesso
+
+O sistema possui dois níveis de perfil:
+
+| Perfil | Acesso |
+|--------|--------|
+| **Representante** | Dashboard, Chat IA |
+| **Admin** | Dashboard, Chat IA, Administração |
+
+**Credenciais de teste:**
+
+| E-mail | Senha | Perfil |
+|--------|-------|--------|
+| `carlos@galton.ai` | `demo123` | Representante |
+| `admin@galton.ai` | `admin123` | Admin |
+
+### 4. Arquivos de Dados (bases/)
 
 Coloque os CSVs na pasta `bases/` (não versionada):
 
@@ -249,6 +266,7 @@ npm run build:web
 | Método | Rota | Descrição |
 |--------|------|-----------|
 | GET | `/api/health` | Health check |
+| POST | `/api/auth/login` | Login (body: `{ email, password }` → retorna `{ name, email, role }`) |
 | POST | `/api/chat` | Chat com Claude (streaming SSE) |
 | GET | `/api/alerts` | Dropouts, cross-sell, planned not purchased |
 | GET | `/api/dashboard-summary` | Briefing executivo gerado por IA |
@@ -258,18 +276,26 @@ npm run build:web
 | DELETE | `/api/conversations/:id` | Remove conversa |
 | GET | `/api/conversations/:id/messages` | Lista mensagens |
 | POST | `/api/conversations/:id/messages` | Adiciona mensagem |
+| GET | `/api/metrics` | Lista métricas do agente |
+| POST | `/api/metrics` | Cria métrica (admin) |
+| PATCH | `/api/metrics/:id` | Atualiza métrica |
+| DELETE | `/api/metrics/:id` | Exclui métrica |
 
 ---
 
-## Ferramentas do Agente
+## Ferramentas do Agente (Métricas)
 
-O chat usa Claude com ferramentas que consultam o Supabase:
+O chat usa Claude com ferramentas que consultam o Supabase. As métricas são cadastradas no banco (`galton.metrics`) e podem ser gerenciadas na aba **Administração → Métricas** (perfil admin).
+
+**Métricas built-in (pré-cadastradas):**
 
 | Ferramenta | Descrição |
 |------------|-----------|
 | `getNearActiveAccounts` | Médicos próximos de virar conta ativa (50–100% da meta), agrupados por segmentação |
 | `getPlannedNotPurchased` | Médicos que compraram no trimestre anterior e não compraram no atual |
 | `getDropouts` | Contas ativas no trimestre anterior que não atingiram meta no atual |
+
+**Métricas custom:** podem ser criadas pelo admin com consultas SQL (apenas SELECT, schema `galton`).
 
 ---
 
@@ -279,11 +305,13 @@ Schema dedicado: `galton`
 
 | Tabela | Descrição |
 |--------|-----------|
+| `users` | Usuários do sistema (representative \| admin) |
 | `representatives` | Representantes de vendas |
 | `doctors` | Médicos/clientes (ONE ID, segmentação) |
 | `sales` | Vendas (1 linha por produto/pedido) |
 | `quotas` | Metas de cota por representante/produto |
 | `active_positivated` | Status ativo/positivado por período |
+| `metrics` | Métricas do agente (funções que o agente pode chamar) |
 | `chat_conversations` | Conversas do chat |
 | `chat_messages` | Mensagens de cada conversa |
 
