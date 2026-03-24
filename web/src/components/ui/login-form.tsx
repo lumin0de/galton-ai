@@ -33,9 +33,18 @@ export default function LoginForm({ onLogin, apiUrl = '', className = '' }: Logi
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim(), password }),
       })
-      const data = await res.json()
+      const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        setError(data.error || 'Credenciais inválidas. Verifique e-mail e senha.')
+        if (res.status === 404) {
+          setError(
+            'API não encontrada (404). Verifique se a Edge Function galton-api está deployada no Supabase.',
+          )
+          return
+        }
+        setError(
+          (data as { error?: string }).error ||
+            'Credenciais inválidas. Verifique e-mail e senha.',
+        )
         return
       }
       onLogin({ name: data.name, email: data.email, role: data.role })
