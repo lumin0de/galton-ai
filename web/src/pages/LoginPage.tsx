@@ -1,7 +1,8 @@
 import { useState, useRef } from 'react'
 import type { FormEvent } from 'react'
+import { getApiBaseUrl } from '@/lib/apiBaseUrl'
 
-const API_URL = import.meta.env.VITE_API_URL || ''
+const API_URL = getApiBaseUrl()
 
 export interface UserSession {
   name: string

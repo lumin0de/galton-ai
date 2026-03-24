@@ -4,8 +4,9 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import ProgressMessage from '../components/ProgressMessage'
 import type { NearActiveItem } from '../components/ProgressMessage'
+import { getApiBaseUrl } from '@/lib/apiBaseUrl'
 
-const API_URL = import.meta.env.VITE_API_URL || ''
+const API_URL = getApiBaseUrl()
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

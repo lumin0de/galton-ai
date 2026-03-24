@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import { Settings } from 'lucide-react'
 import LoginForm, { type UserSession } from './components/ui/login-form'
+import { getApiBaseUrl } from '@/lib/apiBaseUrl'
 import DashboardPage from './pages/DashboardPage'
 import ChatPage from './pages/ChatPage'
 import MetricsPage from './pages/MetricsPage'
@@ -65,13 +66,13 @@ function EmbedLayout() {
       return null
     }
   })
-  const API_URL = import.meta.env.VITE_API_URL || ''
+  const apiUrl = getApiBaseUrl()
   const repName = user?.name ?? 'Usuário'
 
   if (!user) {
     return (
       <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--color-bg)' }}>
-        <LoginForm onLogin={u => { localStorage.setItem(STORAGE_KEY, JSON.stringify(u)); setUser(u) }} apiUrl={API_URL} />
+        <LoginForm onLogin={u => { localStorage.setItem(STORAGE_KEY, JSON.stringify(u)); setUser(u) }} apiUrl={apiUrl} />
       </div>
     )
   }
@@ -111,16 +112,15 @@ function MainApp() {
 
   useEffect(() => {
     if (user?.role !== 'admin') return
-    const API_URL = import.meta.env.VITE_API_URL || ''
-    fetch(`${API_URL}/api/representatives`)
+    fetch(`${getApiBaseUrl()}/api/representatives`)
       .then(r => r.json())
       .then((data: Array<{ id: string; name: string }>) => setRepsList(data))
       .catch(() => setRepsList([]))
   }, [user?.role])
 
-  const API_URL = import.meta.env.VITE_API_URL || ''
+  const apiUrl = getApiBaseUrl()
 
-  if (!user) return <LoginForm onLogin={handleLogin} apiUrl={API_URL} />
+  if (!user) return <LoginForm onLogin={handleLogin} apiUrl={apiUrl} />
 
   const allNavItems: { id: Page; label: string; icon: React.ReactNode; adminOnly?: boolean }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: <IconChart /> },

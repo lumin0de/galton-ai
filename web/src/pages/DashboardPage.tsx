@@ -4,7 +4,9 @@ import axios from 'axios'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
-const API_URL = import.meta.env.VITE_API_URL || ''
+import { getApiBaseUrl } from '@/lib/apiBaseUrl'
+
+const API_URL = getApiBaseUrl()
 
 interface Dropout {
   one_name: string

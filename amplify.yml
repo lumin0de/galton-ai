@@ -5,7 +5,9 @@
 #
 # B) Se a consola tiver YAML próprio, substitua-o por este conteúdo completo.
 #
-# Variáveis no Console: NODE_VERSION=20 ou 22, VITE_API_URL=...
+# Variáveis no Console: NODE_VERSION=20 ou 22
+#   VITE_SUPABASE_URL=https://<PROJECT>.supabase.co  → API em .../functions/v1/galton-api
+#   (ou VITE_API_URL com URL completa da função)
 
 version: 1
 frontend:
