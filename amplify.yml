@@ -1,0 +1,23 @@
+# AWS Amplify — frontend Vite em /web (raiz do repo é monorepo sem node_modules próprio).
+#
+# No Amplify Console → Environment variables, defina:
+#   NODE_VERSION=20   (ou 22 — Vite 7 pede Node 20.19+ / 22.12+)
+#   VITE_API_URL=https://SEU_PROJETO.supabase.co/functions/v1/galton-api
+#     (ou http://localhost:3001 só para testes)
+
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - cd web && npm ci --cache ../.npm --prefer-offline
+    build:
+      commands:
+        - cd web && npm run build
+  artifacts:
+    baseDirectory: web/dist
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - .npm/**/*

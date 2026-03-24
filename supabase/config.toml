@@ -1,0 +1,6 @@
+# Config mínima para Edge Functions. Após `supabase link`, o CLI preenche o restante.
+# Documentação: https://supabase.com/docs/guides/cli/config
+
+[functions.galton-api]
+# Login é custom (body), não JWT do Supabase Auth — a função é pública com segredos só no servidor.
+verify_jwt = false
