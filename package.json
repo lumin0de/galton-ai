@@ -3,12 +3,16 @@
   "version": "1.0.0",
   "private": true,
   "description": "Galton AI — Agente de inteligência de vendas para representantes farmacêuticos",
+  "workspaces": [
+    "web"
+  ],
   "scripts": {
     "dev:api": "cd api && npm run dev",
     "dev:web": "cd web && npm run dev",
     "load-bases": "cd api && npm run load-bases",
     "build:api": "cd api && npm run build",
     "build:web": "cd web && npm run build",
+    "build": "npm run build -w web",
     "serve:edge": "npx supabase functions serve galton-api --no-verify-jwt --env-file ./.env",
     "deploy:edge": "npx supabase functions deploy galton-api"
   }
